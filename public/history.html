@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodJar — History</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+    <div class="brand">Mood<span>Jar</span> 🫙</div>
+    <a href="dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+    <a href="history.html" class="active"><span class="icon">📅</span> Mood History</a>
+    <a href="#" id="logout-btn"><span class="icon">🚪</span> Logout</a>
+</div>
+
+<div class="navbar">
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <h2>Mood History</h2>
+    <div class="avatar" id="avatar-initial">?</div>
+</div>
+
+<div class="page-wrap">
+    <div class="card" id="hist-card">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<script type="module">
+    import { api } from './js/api.js';
+
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    
+    document.getElementById('menu-btn').onclick = () => {
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+    };
+    
+    overlay.onclick = () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+    };
+
+    document.getElementById('logout-btn').onclick = (e) => {
+        e.preventDefault();
+        api.clearToken();
+        window.location.href = 'index.html';
+    };
+
+    async function loadHistory() {
+        const card = document.getElementById('hist-card');
+        
+        try {
+            // Get moods and saved verses
+            const moodsData = await api.getMoods();
+            const moods = moodsData.moods || [];
+            const savedVerses = await api.getSavedVerses();
+            
+            // Get user info
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            document.getElementById('avatar-initial').textContent = (user.username || 'U').charAt(0).toUpperCase();
+
+            if (moods.length === 0) {
+                card.innerHTML = '<p class="empty-msg">No entries yet. Start by logging your mood on the Dashboard!</p>';
+                return;
+            }
+
+            const todayStr = new Date().toISOString().slice(0, 10);
+
+            card.innerHTML = `
+                <h2 style="font-size:20px;font-weight:900;margin-bottom:16px">📋 Your Mood History</h2>
+                <p style="margin-bottom:12px;color:#888;font-size:13px">Total entries: ${moods.length} | Saved verses: ${savedVerses.length}</p>
+                
+                <h3 style="font-size:16px;font-weight:800;margin:20px 0 10px">😊 Mood Entries</h3>
+                ${moods.map(m => {
+                    const d = new Date(m.logged_at);
+                    const dStr = d.toISOString().slice(0, 10);
+                    let when = dStr === todayStr ? 'Today' : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                    const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                    return `
+                        <div class="entry-card">
+                            <div class="e-emoji">${escapeHtml(m.emoji)}</div>
+                            <div class="e-info">
+                                <div class="e-when">${escapeHtml(when)}<span class="e-time">${escapeHtml(time)}</span></div>
+                                <div style="font-size:13px;color:#2ecc71;font-weight:700">${escapeHtml(m.mood)}</div>
+                                ${m.note ? `<div class="e-note">💬 ${escapeHtml(m.note)}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+                
+                ${savedVerses.length > 0 ? `
+                    <h3 style="font-size:16px;font-weight:800;margin:20px 0 10px">📖 Saved Quranic Verses</h3>
+                    ${savedVerses.map(v => `
+                        <div class="entry-card">
+                            <div class="e-emoji">📖</div>
+                            <div class="e-info">
+                                <div class="e-when">${escapeHtml(v.reference)}</div>
+                                <div class="e-verse">"${escapeHtml(v.translation.substring(0, 100))}..."</div>
+                                <div style="font-size:11px;color:#888;margin-top:5px">Saved for ${escapeHtml(v.mood)} mood</div>
+                            </div>
+                        </div>
+                    `).join('')}
+                ` : ''}
+            `;
+        } catch (error) {
+            console.error('Error:', error);
+            card.innerHTML = `<div class="alert alert-error">Error loading history: ${error.message}<br><br><small>Make sure the server is running</small></div>`;
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // Check auth and load
+    if (!api.getToken()) {
+        window.location.href = 'index.html';
+    } else {
+        loadHistory();
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoodJar — Dashboard</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+    <div class="brand">Mood<span>Jar</span> 🫙</div>
+    <a href="dashboard.html" class="active"><span class="icon">🏠</span> Dashboard</a>
+    <a href="history.html"><span class="icon">📅</span> Mood History</a>
+    <a href="#" id="logout-btn"><span class="icon">🚪</span> Logout</a>
+</div>
+
+<div class="navbar">
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <h2>Dashboard</h2>
+    <div class="avatar" id="avatar-initial">?</div>
+</div>
+
+<div class="page-wrap">
+    <div class="card" id="main-card">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Ayat Popup Modal -->
+<div class="modal-overlay" id="ayat-modal">
+    <div class="modal">
+        <h3>✨ Quranic Guidance ✨</h3>
+        <div id="modal-verse-content">
+            <div class="spinner"></div>
+        </div>
+        <div class="modal-buttons">
+            <button class="btn btn-green" id="save-verse-btn">🤍 Save This Verse</button>
+            <button class="btn btn-gray" id="close-modal-btn">Close</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import { api } from './js/api.js';
+    
+    // Quranic verses based on mood
+    const QURANIC_VERSES = {
+        'Sad': [
+            { arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا', translation: 'Verily, with hardship comes ease.', reference: 'Surah Ash-Sharh (94:5)' },
+            { arabic: 'وَلَا تَيْأَسُوا مِن رَّوْحِ اللَّهِ', translation: 'Do not despair of the mercy of Allah.', reference: 'Surah Yusuf (12:87)' },
+            { arabic: 'إِنَّ اللَّهَ مَعَ الصَّابِرِينَ', translation: 'Indeed, Allah is with the patient.', reference: 'Surah Al-Baqarah (2:153)' }
+        ],
+        'Stressed': [
+            { arabic: 'أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ', translation: 'Verily, in the remembrance of Allah do hearts find rest.', reference: 'Surah Ar-Ra\'d (13:28)' },
+            { arabic: 'حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ', translation: 'Allah is sufficient for us.', reference: 'Surah Ali \'Imran (3:173)' }
+        ],
+        'Neutral': [
+            { arabic: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً', translation: 'Our Lord, give us good in this world.', reference: 'Surah Al-Baqarah (2:201)' }
+        ],
+        'Happy': [
+            { arabic: 'لَئِن شَكَرْتُمْ لَأَزِيدَنَّكُمْ', translation: 'If you are grateful, I will surely increase you.', reference: 'Surah Ibrahim (14:7)' }
+        ],
+        'Very Happy': [
+            { arabic: 'وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ', translation: 'And proclaim the blessings of your Lord.', reference: 'Surah Ad-Duha (93:11)' }
+        ]
+    };
+
+    let currentUser = null;
+    let selectedMood = null;
+    let currentVerse = null;
+
+    // Check login status
+    async function checkAuth() {
+        const token = api.getToken();
+        if (!token) {
+            window.location.href = 'index.html';
+            return false;
+        }
+        
+        try {
+            // Verify token by fetching user data
+            const stats = await api.getStats();
+            return true;
+        } catch (error) {
+            api.clearToken();
+            window.location.href = 'index.html';
+            return false;
+        }
+    }
+
+    // Sidebar
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    
+    document.getElementById('menu-btn').onclick = () => {
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+    };
+    
+    overlay.onclick = () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+    };
+
+    document.getElementById('logout-btn').onclick = (e) => {
+        e.preventDefault();
+        api.clearToken();
+        window.location.href = 'index.html';
+    };
+
+    // Load dashboard
+    async function loadDashboard() {
+        const card = document.getElementById('main-card');
+        
+        try {
+            // Get today's mood
+            const todayMood = await api.getTodayMood();
+            
+            // Get stats
+            const stats = await api.getStats();
+            
+            // Get user info from localStorage or API
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            const name = user.username || 'User';
+            document.getElementById('avatar-initial').textContent = name.charAt(0).toUpperCase();
+            
+            card.innerHTML = `
+                <div class="greeting">Hello, ${escapeHtml(name)}! 👋</div>
+
+                ${todayMood ? `
+                <div style="background:#e8f5f0;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:18px">
+                    <div style="font-size:28px">${escapeHtml(todayMood.emoji)}</div>
+                    <div style="font-size:13px;color:#555">
+                        <strong style="display:block;font-size:15px;color:#1a1a2e">Today's mood: ${escapeHtml(todayMood.mood)}</strong>
+                        You already logged your mood today.
+                    </div>
+                </div>` : ''}
+
+                <p class="mood-question">How are you feeling today?</p>
+                <div class="mood-row" id="mood-row">
+                    <button class="mood-btn" data-mood="Sad" data-emoji="😢">😢</button>
+                    <button class="mood-btn" data-mood="Stressed" data-emoji="😰">😰</button>
+                    <button class="mood-btn" data-mood="Neutral" data-emoji="😐">😐</button>
+                    <button class="mood-btn" data-mood="Happy" data-emoji="😊">😊</button>
+                    <button class="mood-btn" data-mood="Very Happy" data-emoji="😁">😁</button>
+                </div>
+                <div class="mood-label" id="mood-label"></div>
+
+                <label class="field-label">Add note (optional)</label>
+                <textarea id="note" rows="3" placeholder="What's on your mind?"></textarea>
+
+                <button class="btn btn-disabled" id="submit-btn" disabled>
+                    SUBMIT MOOD
+                </button>
+
+                <hr class="divider">
+
+                <div style="font-size:18px;font-weight:800;margin-bottom:14px">Your Stats</div>
+                ${stats.total === 0
+                    ? '<p style="color:#888;font-size:14px;text-align:center">Your stats will appear after you log your first mood.</p>'
+                    : `<div class="stats-grid">
+                        <div class="stat-box"><div class="num">${stats.total}</div><div class="lbl">Total Entries</div></div>
+                        ${stats.topMood ? `<div class="stat-box"><div class="num" style="font-size:16px">${escapeHtml(stats.topMood.mood)}</div><div class="lbl">Top Mood</div></div>` : ''}
+                       </div>`
+                }
+            `;
+
+            // Attach mood button events
+            document.querySelectorAll('.mood-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.mood-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    selectedMood = { mood: btn.dataset.mood, emoji: btn.dataset.emoji };
+                    document.getElementById('mood-label').textContent = 'You selected: ' + selectedMood.mood;
+                    const submitBtn = document.getElementById('submit-btn');
+                    submitBtn.disabled = false;
+                    submitBtn.className = 'btn btn-green';
+                };
+            });
+
+            document.getElementById('submit-btn').onclick = submitMood;
+
+        } catch (error) {
+            console.error('Error:', error);
+            card.innerHTML = `
+                <div class="alert alert-error">
+                    <strong>⚠️ Error loading data</strong><br>
+                    ${error.message}<br><br>
+                    <small>Make sure the server is running on http://localhost:3000</small>
+                </div>
+            `;
+        }
+    }
+
+    async function submitMood() {
+        if (!selectedMood) {
+            alert('Please select a mood first');
+            return;
+        }
+
+        const note = document.getElementById('note').value.trim();
+        const submitBtn = document.getElementById('submit-btn');
+        
+        submitBtn.textContent = 'Saving...';
+        submitBtn.disabled = true;
+
+        try {
+            // Save mood to MySQL via API
+            await api.saveMood(selectedMood.mood, selectedMood.emoji, note);
+            
+            // Get verse based on mood
+            const verses = QURANIC_VERSES[selectedMood.mood] || QURANIC_VERSES['Neutral'];
+            currentVerse = verses[Math.floor(Math.random() * verses.length)];
+            
+            // Show popup
+            showAyatPopup(currentVerse, selectedMood.mood);
+
+        } catch (error) {
+            console.error('Save error:', error);
+            alert('Failed to save mood: ' + error.message);
+            submitBtn.textContent = 'SUBMIT MOOD';
+            submitBtn.disabled = false;
+        }
+    }
+
+    function showAyatPopup(verse, mood) {
+        const modal = document.getElementById('ayat-modal');
+        const content = document.getElementById('modal-verse-content');
+        
+        content.innerHTML = `
+            <div class="verse-arabic">${escapeHtml(verse.arabic)}</div>
+            <div class="verse-translation">"${escapeHtml(verse.translation)}"</div>
+            <div class="verse-ref">📖 ${escapeHtml(verse.reference)}</div>
+            <p style="margin-top:15px;font-size:13px;color:#888">This verse is for your ${escapeHtml(mood)} mood</p>
+        `;
+        
+        modal.classList.add('show');
+        
+        const saveBtn = document.getElementById('save-verse-btn');
+        const closeBtn = document.getElementById('close-modal-btn');
+        
+        const newSaveBtn = saveBtn.cloneNode(true);
+        const newCloseBtn = closeBtn.cloneNode(true);
+        saveBtn.parentNode.replaceChild(newSaveBtn, saveBtn);
+        closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+        
+        newSaveBtn.onclick = async () => {
+            newSaveBtn.textContent = 'Saving...';
+            newSaveBtn.disabled = true;
+            
+            try {
+                await api.saveVerse(verse.arabic, verse.translation, verse.reference, mood);
+                newSaveBtn.textContent = '✓ Saved!';
+                newSaveBtn.style.background = '#27ae60';
+                
+                setTimeout(() => {
+                    modal.classList.remove('show');
+                    window.location.href = 'history.html';
+                }, 1000);
+            } catch (err) {
+                alert('Failed to save verse: ' + err.message);
+                newSaveBtn.textContent = '🤍 Save This Verse';
+                newSaveBtn.disabled = false;
+            }
+        };
+        
+        newCloseBtn.onclick = () => {
+            modal.classList.remove('show');
+            window.location.href = 'history.html';
+        };
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // Initialize
+    checkAuth().then(() => {
+        // Load user data
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            currentUser = JSON.parse(userStr);
+        }
+        loadDashboard();
+    });
+</script>
+</body>
+</html>
