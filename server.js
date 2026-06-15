@@ -9,7 +9,7 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static('public'));
 
-// Database connection for Neon PostgreSQL
+// Database connection for Neon PostgreSQL - THIS IS THE CORRECT ONE
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: { rejectUnauthorized: false },
