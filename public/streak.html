@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindSakinah — My Streak 🔥</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+    <div class="brand">Mind<span>Sakinah</span> 🕊️</div>
+    <a href="dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+    <a href="history.html"><span class="icon">📅</span> Mood History</a>
+    <a href="quranic-jar.html"><span class="icon">📖</span> Quranic Jar</a>
+    <a href="streak.html" class="active"><span class="icon">🔥</span> My Streak</a>
+    <a href="profile.html"><span class="icon">👤</span> Profile</a>
+    <a href="#" id="logout-btn"><span class="icon">🚪</span> Logout</a>
+</div>
+
+<div class="navbar">
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <h2>My Streak</h2>
+    <div>
+        <button id="darkModeToggle" style="background: rgba(255,255,255,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; margin-right: 10px;">🌙</button>
+    </div>
+    <div class="avatar" id="avatar-initial">🔥</div>
+</div>
+
+<div class="page-wrap">
+    <div class="card" id="streak-card"><div class="spinner"></div></div>
+    <div class="card" id="calendar-streak-card"><div class="spinner"></div></div>
+</div>
+
+<script type="module">
+    import { api } from './js/api.js';
+
+   function initDarkMode() {
+    // Check localStorage on page load
+    const darkMode = localStorage.getItem('darkMode') === 'true';
+    if (darkMode) {
+        document.body.classList.add('dark-mode');
+        document.getElementById('darkModeToggle').textContent = '☀️';
+    }
+    
+    document.getElementById('darkModeToggle').onclick = () => {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        localStorage.setItem('darkMode', isDark);
+        document.getElementById('darkModeToggle').textContent = isDark ? '☀️' : '🌙';
+    };
+
+    }
+
+    if (!api.getToken()) window.location.href = 'login.html';
+
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    document.getElementById('menu-btn').onclick = () => { sidebar.classList.add('open'); overlay.classList.add('show'); };
+    overlay.onclick = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
+    document.getElementById('logout-btn').onclick = (e) => { e.preventDefault(); api.clearToken(); window.location.href = 'login.html'; };
+
+    async function loadStreakData() {
+        const streakCard = document.getElementById('streak-card');
+        const calendarCard = document.getElementById('calendar-streak-card');
+        try {
+            const moodsData = await api.getMoods();
+            const moods = moodsData.moods || [];
+            const moodMap = {};
+            moods.forEach(mood => { const dateKey = new Date(mood.logged_at).toISOString().slice(0, 10); moodMap[dateKey] = mood.emoji; });
+            
+            const today = new Date(); today.setHours(0,0,0,0);
+            let currentStreak = 0;
+            for (let i = 0; i < 365; i++) { const checkDate = new Date(today); checkDate.setDate(today.getDate() - i); if (moodMap[checkDate.toISOString().slice(0,10)]) currentStreak++; else break; }
+            
+            let longestStreak = 0, tempStreak = 0;
+            const sortedDates = Object.keys(moodMap).sort();
+            for (let i = 0; i < sortedDates.length; i++) {
+                if (i > 0) { const prevDate = new Date(sortedDates[i-1]), currDate = new Date(sortedDates[i]); const diffDays = Math.round((currDate - prevDate) / (1000*60*60*24)); if (diffDays === 1) tempStreak++; else { longestStreak = Math.max(longestStreak, tempStreak); tempStreak = 1; } }
+                else tempStreak = 1;
+            }
+            longestStreak = Math.max(longestStreak, tempStreak);
+            
+            let badge = '', badgeClass = '';
+            if (currentStreak >= 30) { badge = '🏆 LEGENDARY'; badgeClass = 'badge-gold'; }
+            else if (currentStreak >= 14) { badge = '⭐ DEDICATED'; badgeClass = 'badge-silver'; }
+            else if (currentStreak >= 7) { badge = '🌟 ON FIRE'; badgeClass = 'badge-bronze'; }
+            else if (currentStreak >= 3) badge = '🌱 GROWING';
+            
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            document.getElementById('avatar-initial').textContent = (user.username || 'U').charAt(0).toUpperCase();
+            
+            streakCard.innerHTML = `<div style="text-align: center;"><div style="font-size: 64px;">🔥</div><h2 style="font-size: 28px; font-weight: 800;">${currentStreak} Day Streak</h2><p style="color: var(--text-light); margin-bottom: 20px;">Keep going! You're doing amazing 🌸</p>${badge ? `<div class="badge ${badgeClass}" style="display: inline-block; margin-bottom: 20px;">${badge}</div>` : ''}<div class="stats-grid"><div class="stat-box"><div class="num">${longestStreak}</div><div class="lbl">Longest Streak</div></div><div class="stat-box"><div class="num">${moods.length}</div><div class="lbl">Total Moods</div></div></div></div>`;
+            
+            const currentYear = today.getFullYear(), currentMonth = today.getMonth();
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+            const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+            const firstDayOfWeek = firstDayOfMonth.getDay();
+            let startOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            let daysHTML = '<div class="calendar-weekdays"><div class="weekday">M</div><div class="weekday">T</div><div class="weekday">W</div><div class="weekday">T</div><div class="weekday">F</div><div class="weekday">S</div><div class="weekday">S</div></div><div class="calendar-days">';
+            for (let i = 0; i < startOffset; i++) daysHTML += '<div class="calendar-day empty"></div>';
+            for (let d = 1; d <= daysInMonth; d++) {
+                const dateKey = `${currentYear}-${String(currentMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const hasMood = moodMap[dateKey];
+                const isToday = (d === today.getDate());
+                let dayClass = 'calendar-day';
+                if (hasMood) dayClass += ' has-mood';
+                if (isToday) dayClass += ' today';
+                daysHTML += `<div class="${dayClass}"><div class="day-number">${d}</div>${hasMood ? '<div class="mood-emoji">✅</div>' : ''}</div>`;
+            }
+            daysHTML += '</div><div style="margin-top: 20px; text-align: center; font-size: 12px;">🟢 Green days = You logged your mood! Keep the streak alive! 🔥</div>';
+            calendarCard.innerHTML = `<h3 style="font-size: 18px; font-weight: 800; margin-bottom: 20px; text-align: center;">📅 ${monthNames[currentMonth]} ${currentYear}</h3>${daysHTML}`;
+        } catch(e) { streakCard.innerHTML = `<div class="alert alert-error">Error loading streak data: ${e.message}</div>`; }
+    }
+    
+    initDarkMode();
+
+    loadStreakData();
+</script>
+</body>
+</html>

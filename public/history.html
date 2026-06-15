@@ -3,23 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoodJar — History</title>
+    <title>MindSakinah — History 🌸</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .play-verse-btn {
+            background: linear-gradient(135deg, #e8aeb8, #c2b0c2);
+            border: none;
+            padding: 8px 18px;
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .play-verse-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .play-verse-btn.playing {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+        }
+        .audio-status {
+            font-size: 11px;
+            margin-top: 5px;
+            color: var(--text-light);
+        }
+        .audio-status.playing {
+            color: #4CAF50;
+        }
+    </style>
 </head>
 <body>
 
 <div class="overlay" id="overlay"></div>
 <div class="sidebar" id="sidebar">
-    <div class="brand">Mood<span>Jar</span> 🫙</div>
+    <div class="brand">Mind<span>Sakinah</span> 🕊️</div>
     <a href="dashboard.html"><span class="icon">🏠</span> Dashboard</a>
     <a href="history.html" class="active"><span class="icon">📅</span> Mood History</a>
+    <a href="quranic-jar.html"><span class="icon">📖</span> Quranic Jar</a>
+    <a href="streak.html"><span class="icon">🔥</span> My Streak</a>
+    <a href="profile.html"><span class="icon">👤</span> Profile</a>
     <a href="#" id="logout-btn"><span class="icon">🚪</span> Logout</a>
 </div>
 
 <div class="navbar">
     <button class="menu-btn" id="menu-btn">☰</button>
     <h2>Mood History</h2>
-    <div class="avatar" id="avatar-initial">?</div>
+    <div>
+        <button id="darkModeToggle" style="background: rgba(255,255,255,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; margin-right: 10px;">🌙</button>
+    </div>
+    <div class="avatar" id="avatar-initial">🌸</div>
 </div>
 
 <div class="page-wrap">
@@ -31,50 +68,207 @@
 <script type="module">
     import { api } from './js/api.js';
 
+    let currentHistoryAudio = null;
+
+    // =====================================
+    // PLAY HISTORY AYAH AUDIO
+    // =====================================
+    function playHistoryAyah(surah, ayah, buttonElement) {
+        // Format surah and ayah with leading zeros (3 digits each)
+        const surahStr = String(surah).padStart(3, '0');
+        const ayahStr = String(ayah).padStart(3, '0');
+        
+        // Using everyayah.com API for specific ayah audio
+        const audioUrl = `https://everyayah.com/data/Alafasy_128kbps/${surahStr}${ayahStr}.mp3`;
+        
+        // Get status element
+        const statusDiv = buttonElement.parentElement?.querySelector('.audio-status') || 
+                          buttonElement.closest('.entry-card')?.querySelector('.audio-status');
+        
+        // STOP PREVIOUS AUDIO
+        if (currentHistoryAudio) {
+            currentHistoryAudio.pause();
+            currentHistoryAudio.currentTime = 0;
+            // Reset previous button style
+            if (window.lastPlayedButton) {
+                window.lastPlayedButton.textContent = '🎧 Play Recitation';
+                window.lastPlayedButton.classList.remove('playing');
+            }
+            if (window.lastPlayedStatus) {
+                window.lastPlayedStatus.textContent = '';
+                window.lastPlayedStatus.classList.remove('playing');
+            }
+        }
+        
+        // Update button to show loading
+        buttonElement.textContent = '⏳ Loading...';
+        buttonElement.disabled = true;
+        
+        if (statusDiv) {
+            statusDiv.textContent = '🔊 Loading audio...';
+            statusDiv.classList.add('playing');
+        }
+        
+        // CREATE AUDIO
+        currentHistoryAudio = new Audio(audioUrl);
+        window.lastPlayedButton = buttonElement;
+        window.lastPlayedStatus = statusDiv;
+        
+        // Handle audio load success
+        currentHistoryAudio.addEventListener('canplaythrough', () => {
+            buttonElement.textContent = '🎧 Playing...';
+            buttonElement.classList.add('playing');
+            buttonElement.disabled = false;
+            if (statusDiv) {
+                statusDiv.textContent = '🎙️ Playing recitation...';
+            }
+        });
+        
+        // PLAY AUDIO
+        currentHistoryAudio.play()
+            .then(() => {
+                console.log('Audio is playing for Surah', surah, 'Ayah', ayah);
+            })
+            .catch((error) => {
+                console.error('Audio play error:', error);
+                buttonElement.textContent = '🎧 Play Recitation';
+                buttonElement.classList.remove('playing');
+                buttonElement.disabled = false;
+                if (statusDiv) {
+                    statusDiv.textContent = '⚠️ Audio failed to play';
+                    statusDiv.classList.remove('playing');
+                    setTimeout(() => {
+                        if (statusDiv) statusDiv.textContent = '';
+                    }, 3000);
+                }
+                alert('Audio failed to play. Please try again.');
+            });
+        
+        // Handle audio end
+        currentHistoryAudio.onended = () => {
+            buttonElement.textContent = '🎧 Play Recitation';
+            buttonElement.classList.remove('playing');
+            if (statusDiv) {
+                statusDiv.textContent = '✅ Playback complete';
+                setTimeout(() => {
+                    if (statusDiv) statusDiv.textContent = '';
+                    statusDiv.classList.remove('playing');
+                }, 2000);
+            }
+            currentHistoryAudio = null;
+        };
+        
+        // Handle audio error
+        currentHistoryAudio.onerror = () => {
+            buttonElement.textContent = '🎧 Play Recitation';
+            buttonElement.classList.remove('playing');
+            buttonElement.disabled = false;
+            if (statusDiv) {
+                statusDiv.textContent = '⚠️ Audio not available';
+                statusDiv.classList.remove('playing');
+                setTimeout(() => {
+                    if (statusDiv) statusDiv.textContent = '';
+                }, 3000);
+            }
+            currentHistoryAudio = null;
+        };
+    }
+
+    // =====================================
+    // STOP AUDIO FUNCTION
+    // =====================================
+    function stopHistoryAudio() {
+        if (currentHistoryAudio) {
+            currentHistoryAudio.pause();
+            currentHistoryAudio.currentTime = 0;
+            currentHistoryAudio = null;
+        }
+        if (window.lastPlayedButton) {
+            window.lastPlayedButton.textContent = '🎧 Play Recitation';
+            window.lastPlayedButton.classList.remove('playing');
+        }
+        if (window.lastPlayedStatus) {
+            window.lastPlayedStatus.textContent = '';
+            window.lastPlayedStatus.classList.remove('playing');
+        }
+    }
+
+    // =====================================
+    // DARK MODE
+    // =====================================
+    function initDarkMode() {
+        const darkMode = localStorage.getItem('darkMode') === 'true';
+        if (darkMode) document.body.classList.add('dark-mode');
+        document.getElementById('darkModeToggle').onclick = () => {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+            document.getElementById('darkModeToggle').textContent = document.body.classList.contains('dark-mode') ? '☀️' : '🌙';
+        };
+    }
+
+    // =====================================
+    // CHECK AUTH
+    // =====================================
+    if (!api.getToken()) {
+        window.location.href = 'login.html';
+    }
+
+    // =====================================
+    // SIDEBAR
+    // =====================================
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('overlay');
-    
-    document.getElementById('menu-btn').onclick = () => {
-        sidebar.classList.add('open');
-        overlay.classList.add('show');
+    document.getElementById('menu-btn').onclick = () => { 
+        sidebar.classList.add('open'); 
+        overlay.classList.add('show'); 
     };
-    
-    overlay.onclick = () => {
-        sidebar.classList.remove('open');
-        overlay.classList.remove('show');
+    overlay.onclick = () => { 
+        sidebar.classList.remove('open'); 
+        overlay.classList.remove('show'); 
     };
-
-    document.getElementById('logout-btn').onclick = (e) => {
-        e.preventDefault();
-        api.clearToken();
-        window.location.href = 'index.html';
+    document.getElementById('logout-btn').onclick = (e) => { 
+        e.preventDefault(); 
+        stopHistoryAudio();
+        api.clearToken(); 
+        window.location.href = 'login.html'; 
     };
 
+    // =====================================
+    // LOAD HISTORY
+    // =====================================
     async function loadHistory() {
         const card = document.getElementById('hist-card');
-        
         try {
-            // Get moods and saved verses
             const moodsData = await api.getMoods();
             const moods = moodsData.moods || [];
             const savedVerses = await api.getSavedVerses();
-            
-            // Get user info
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             document.getElementById('avatar-initial').textContent = (user.username || 'U').charAt(0).toUpperCase();
 
             if (moods.length === 0) {
-                card.innerHTML = '<p class="empty-msg">No entries yet. Start by logging your mood on the Dashboard!</p>';
+                card.innerHTML = '<p class="empty-msg">No entries yet. Start by logging your mood on the Dashboard! 🌸</p>';
                 return;
             }
 
             const todayStr = new Date().toISOString().slice(0, 10);
-
+            
+            // Helper to extract surah number from reference (e.g., "Surah Al-Fatihah (1:2)" -> 1)
+            function extractSurahNumber(reference) {
+                const match = reference.match(/\((\d+):/);
+                return match ? parseInt(match[1]) : null;
+            }
+            
+            // Helper to extract ayah number from reference
+            function extractAyahNumber(reference) {
+                const match = reference.match(/:(\d+)\)/);
+                return match ? parseInt(match[1]) : null;
+            }
+            
             card.innerHTML = `
-                <h2 style="font-size:20px;font-weight:900;margin-bottom:16px">📋 Your Mood History</h2>
-                <p style="margin-bottom:12px;color:#888;font-size:13px">Total entries: ${moods.length} | Saved verses: ${savedVerses.length}</p>
+                <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 16px;">📋 Your Journey</h2>
+                <p style="margin-bottom: 16px; color: var(--text-light); font-size: 13px;">🌸 ${moods.length} entries • 📖 ${savedVerses.length} saved verses</p>
                 
-                <h3 style="font-size:16px;font-weight:800;margin:20px 0 10px">😊 Mood Entries</h3>
+                <h3 style="font-size: 16px; font-weight: 800; margin: 20px 0 12px;">😊 Mood Entries</h3>
                 ${moods.map(m => {
                     const d = new Date(m.logged_at);
                     const dStr = d.toISOString().slice(0, 10);
@@ -85,7 +279,7 @@
                             <div class="e-emoji">${escapeHtml(m.emoji)}</div>
                             <div class="e-info">
                                 <div class="e-when">${escapeHtml(when)}<span class="e-time">${escapeHtml(time)}</span></div>
-                                <div style="font-size:13px;color:#2ecc71;font-weight:700">${escapeHtml(m.mood)}</div>
+                                <div style="font-size: 13px; color: var(--accent-pink); font-weight: 700;">${escapeHtml(m.mood)}</div>
                                 ${m.note ? `<div class="e-note">💬 ${escapeHtml(m.note)}</div>` : ''}
                             </div>
                         </div>
@@ -93,36 +287,59 @@
                 }).join('')}
                 
                 ${savedVerses.length > 0 ? `
-                    <h3 style="font-size:16px;font-weight:800;margin:20px 0 10px">📖 Saved Quranic Verses</h3>
-                    ${savedVerses.map(v => `
-                        <div class="entry-card">
-                            <div class="e-emoji">📖</div>
-                            <div class="e-info">
-                                <div class="e-when">${escapeHtml(v.reference)}</div>
-                                <div class="e-verse">"${escapeHtml(v.translation.substring(0, 100))}..."</div>
-                                <div style="font-size:11px;color:#888;margin-top:5px">Saved for ${escapeHtml(v.mood)} mood</div>
+                    <h3 style="font-size: 16px; font-weight: 800; margin: 20px 0 12px;">📖 Saved Quranic Verses</h3>
+                    ${savedVerses.map(v => {
+                        // Get surah and ayah numbers from reference or from stored values
+                        let surahNum = v.surah_number || extractSurahNumber(v.reference);
+                        let ayahNum = v.ayah_number || extractAyahNumber(v.reference);
+                        
+                        return `
+                            <div class="entry-card">
+                                <div class="e-emoji">📖</div>
+                                <div class="e-info">
+                                    <div class="e-when">${escapeHtml(v.reference)}</div>
+                                    <div class="e-verse" style="font-family: 'Amiri', serif; font-size: 18px; direction: rtl; margin: 8px 0;">${escapeHtml(v.arabic)}</div>
+                                    <div class="e-verse" style="font-size: 12px;">"${escapeHtml(v.translation.substring(0, 100))}..."</div>
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; flex-wrap: wrap; gap: 8px;">
+                                        <span style="font-size: 11px; color: var(--accent-pink);">Saved for ${escapeHtml(v.mood)} mood</span>
+                                        ${surahNum && ayahNum ? `
+                                            <button class="play-verse-btn" data-surah="${surahNum}" data-ayah="${ayahNum}">
+                                                🎧 Play Recitation
+                                            </button>
+                                            <div class="audio-status"></div>
+                                        ` : '<span style="font-size: 11px; color: #888;">Audio not available for this verse</span>'}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    `).join('')}
+                        `;
+                    }).join('')}
                 ` : ''}
             `;
-        } catch (error) {
-            console.error('Error:', error);
-            card.innerHTML = `<div class="alert alert-error">Error loading history: ${error.message}<br><br><small>Make sure the server is running</small></div>`;
+            
+            // Attach play button events
+            document.querySelectorAll('.play-verse-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const surah = parseInt(btn.dataset.surah);
+                    const ayah = parseInt(btn.dataset.ayah);
+                    playHistoryAyah(surah, ayah, btn);
+                };
+            });
+            
+        } catch(e) { 
+            console.error('Error loading history:', e);
+            card.innerHTML = `<div class="alert alert-error">Error loading history: ${e.message} 🌸</div>`; 
         }
     }
 
-    function escapeHtml(str) {
-        if (!str) return '';
-        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    function escapeHtml(str) { 
+        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); 
     }
-
-    // Check auth and load
-    if (!api.getToken()) {
-        window.location.href = 'index.html';
-    } else {
-        loadHistory();
-    }
+    
+    // =====================================
+    // INITIALIZE
+    // =====================================
+    initDarkMode();
+    loadHistory();
 </script>
 </body>
 </html>

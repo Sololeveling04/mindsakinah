@@ -3,67 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoodJar — Login</title>
+    <title>MindSakinah — Find Peace Within 🌸</title>
     <link rel="stylesheet" href="css/style.css">
+    <style>
+        .hero-section {
+            text-align: center;
+            padding: 50px 30px;
+            background: rgba(255, 245, 247, 0.5);
+            backdrop-filter: blur(15px);
+            border-radius: 40px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+        .hero-section h1 {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #e8aeb8, #c2b0c2);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        .hero-section p {
+            font-size: 16px;
+            color: var(--text-dark);
+            opacity: 0.85;
+        }
+        .feature-card {
+            transition: all 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-8px);
+            background: rgba(255, 245, 247, 0.8);
+        }
+        .cta-section {
+            background: rgba(255, 245, 247, 0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 30px;
+            padding: 30px;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.4);
+        }
+        .btn-large {
+            padding: 14px 32px;
+            width: auto;
+            margin: 0 10px;
+        }
+        @media (max-width: 480px) {
+            .hero-section h1 { font-size: 32px; }
+            .btn-large { margin: 10px 0; display: block; width: 100%; }
+        }
+    </style>
 </head>
 <body>
-<div class="auth-wrap">
-    <div class="card auth-card">
-        <div class="auth-logo">
-            <h1>Mood<span>Jar</span> 🫙</h1>
-            <p>Your daily mood tracker with Quranic guidance</p>
+
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+    <div class="brand">Mind<span>Sakinah</span> 🕊️</div>
+    <a href="index.html" class="active"><span class="icon">🏠</span> Home</a>
+    <a href="login.html"><span class="icon">🔑</span> Sign In</a>
+    <a href="register.html"><span class="icon">📝</span> Register</a>
+    <a href="streak.html"><span class="icon">🔥</span> My Streak</a>
+</div>
+
+<div class="navbar">
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <h2>MindSakinah</h2>
+    <div>
+        <button id="darkModeToggle" style="background: rgba(255,255,255,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; margin-right: 10px;">🌙</button>
+    </div>
+    <div class="avatar" id="avatar-initial">🌸</div>
+</div>
+
+<div class="page-wrap">
+    <div class="hero-section">
+        <h1>Mind<span>Sakinah</span></h1>
+        <p>A personal sanctuary for your mental and spiritual journey.<br>Track your moods, discover Quranic wisdom, and find peace.</p>
+    </div>
+
+    <div class="features-grid">
+        <div class="feature-card">
+            <div class="feature-icon">📓</div>
+            <h3>Daily Reflection</h3>
+            <p>Log your emotions and thoughts in a secure, private space.</p>
         </div>
-        <div id="alert-box"></div>
-        <label class="field-label">Email</label>
-        <input type="email" id="email" placeholder="your@email.com">
-        <label class="field-label">Password</label>
-        <input type="password" id="password" placeholder="Enter your password">
-        <button class="btn btn-green" id="login-btn">LOGIN</button>
-        <div class="auth-footer">
-            Don't have an account? <a href="register.html">Register here</a>
+        <div class="feature-card">
+            <div class="feature-icon">📖</div>
+            <h3>Spiritual Wisdom</h3>
+            <p>Receive Quranic verses that mirror your inner state.</p>
+        </div>
+        <div class="feature-card">
+            <div class="feature-icon">🔒</div>
+            <h3>Safe Haven</h3>
+            <p>Your personal mental health data is always private.</p>
+        </div>
+    </div>
+
+    <div class="cta-section">
+        <p style="margin-bottom: 20px; font-size: 16px;">✨ Ready to start your journey? ✨</p>
+        <div>
+            <a href="login.html" class="btn btn-matcha btn-large">Sign In</a>
+            <a href="register.html" class="btn btn-outline btn-large">Create Account</a>
         </div>
     </div>
 </div>
+
 <script type="module">
-    import { api } from './js/api.js';
-    
-    // If already logged in, go to dashboard
-    if (api.getToken()) {
-        window.location.href = 'dashboard.html';
+    // Dark Mode
+    function initDarkMode() {
+        const darkMode = localStorage.getItem('darkMode') === 'true';
+        if (darkMode) {
+            document.body.classList.add('dark-mode');
+            document.getElementById('darkModeToggle').textContent = '☀️';
+        }
+        document.getElementById('darkModeToggle').onclick = () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('darkMode', isDark);
+            document.getElementById('darkModeToggle').textContent = isDark ? '☀️' : '🌙';
+        };
     }
     
-    document.getElementById('login-btn').onclick = async () => {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
-        const alertBox = document.getElementById('alert-box');
-        
-        alertBox.innerHTML = '';
-        
-        if (!email || !password) {
-            alertBox.innerHTML = '<div class="alert alert-error">Please fill in all fields.</div>';
-            return;
-        }
-        
-        const btn = document.getElementById('login-btn');
-        btn.textContent = 'Logging in...';
-        btn.disabled = true;
-        
-        try {
-            const result = await api.login(email, password);
-            if (result.user) {
-                localStorage.setItem('user', JSON.stringify(result.user));
-                window.location.href = 'dashboard.html';
-            }
-        } catch (err) {
-            alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
-            btn.textContent = 'LOGIN';
-            btn.disabled = false;
-        }
+    // Sidebar
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    document.getElementById('menu-btn').onclick = () => {
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+    };
+    overlay.onclick = () => {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
     };
     
-    document.getElementById('password').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') document.getElementById('login-btn').click();
-    });
+    initDarkMode();
 </script>
 </body>
 </html>

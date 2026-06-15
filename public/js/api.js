@@ -1,4 +1,3 @@
-// API Client - replaces Firebase
 const API_URL = 'http://localhost:3000/api';
 
 let authToken = null;
@@ -16,6 +15,7 @@ export const api = {
     clearToken() {
         authToken = null;
         localStorage.removeItem('authToken');
+        localStorage.removeItem('user');
     },
     
     async request(endpoint, options = {}) {
@@ -30,15 +30,10 @@ export const api = {
         });
         
         const data = await response.json();
-        
-        if (!response.ok) {
-            throw new Error(data.error || 'Request failed');
-        }
-        
+        if (!response.ok) throw new Error(data.error || 'Request failed');
         return data;
     },
     
-    // Auth
     async register(username, email, password) {
         const data = await this.request('/register', {
             method: 'POST',
@@ -57,7 +52,6 @@ export const api = {
         return data;
     },
     
-    // Moods
     async saveMood(mood, emoji, note) {
         return this.request('/moods', {
             method: 'POST',
@@ -69,15 +63,14 @@ export const api = {
         return this.request('/moods/today');
     },
     
-    async getMoods(page = 1) {
-        return this.request(`/moods?page=${page}`);
+    async getMoods() {
+        return this.request('/moods');
     },
     
     async getStats() {
         return this.request('/moods/stats');
     },
     
-    // Verses
     async saveVerse(arabic, translation, reference, mood) {
         return this.request('/saved-verses', {
             method: 'POST',

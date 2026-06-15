@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindSakinah — Quranic Jar 🌸</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .verse-card {
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .verse-card:hover {
+            transform: scale(1.02);
+        }
+        .cat-btn {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 12px 16px;
+            background: rgba(255,245,247,0.5);
+            border: 1px solid rgba(232,174,184,0.3);
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: 'Inter', sans-serif;
+        }
+        .cat-btn:hover {
+            background: linear-gradient(135deg, #e8aeb8, #c2b0c2);
+            color: white;
+            transform: translateX(5px);
+        }
+        .cat-btn.active {
+            background: linear-gradient(135deg, #e8aeb8, #c2b0c2);
+            color: white;
+            border-color: transparent;
+        }
+        .cat-emoji {
+            font-size: 22px;
+        }
+        .btn-outline-pink {
+            background: transparent;
+            border: 2px solid #e8aeb8;
+            color: #e8aeb8;
+            border-radius: 40px;
+            padding: 12px 20px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-outline-pink:hover {
+            background: #e8aeb8;
+            color: white;
+        }
+        .btn-matcha {
+            background: linear-gradient(135deg, #e8aeb8, #c2b0c2);
+            color: white;
+            border: none;
+            border-radius: 40px;
+            padding: 12px 20px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-matcha:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #e8aeb8;
+            color: #e8aeb8;
+            border-radius: 40px;
+            padding: 12px 20px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-outline:hover {
+            background: #e8aeb8;
+            color: white;
+        }
+        .audio-status {
+            font-size: 11px;
+            margin-top: 5px;
+            color: var(--text-light);
+        }
+        .playing-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background-color: #4CAF50;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+    <div class="brand">Mind<span>Sakinah</span> 🕊️</div>
+    <a href="dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+    <a href="history.html"><span class="icon">📅</span> Mood History</a>
+    <a href="quranic-jar.html" class="active"><span class="icon">📖</span> Quranic Jar</a>
+    <a href="streak.html"><span class="icon">🔥</span> My Streak</a>
+    <a href="profile.html"><span class="icon">👤</span> Profile</a>
+    <a href="#" id="logout-btn"><span class="icon">🚪</span> Logout</a>
+</div>
+
+<div class="navbar">
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <h2>Quranic Jar</h2>
+    <div>
+        <button id="darkModeToggle" style="background: rgba(255,255,255,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; margin-right: 10px;">🌙</button>
+    </div>
+    <div class="avatar" id="avatar-initial">🌸</div>
+</div>
+
+<div class="page-wrap">
+    <div class="card" id="jar-card">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Saved Verses Modal -->
+<div class="modal-overlay" id="saved-modal">
+    <div class="modal">
+        <h3>📖 Your Saved Verses</h3>
+        <div id="saved-list" style="max-height: 400px; overflow-y: auto;"><div class="spinner"></div></div>
+        <button class="btn btn-outline" style="margin-top: 16px;" id="close-saved-modal">Close</button>
+    </div>
+</div>
+
+<script type="module">
+    import { api } from './js/api.js';
+    
+    // Verses with surah AND ayah numbers for accurate audio
+    const VERSES = {
+        Happy: [
+            { arabic: 'لَئِن شَكَرْتُمْ لَأَزِيدَنَّكُمْ', translation: 'If you are grateful, I will surely increase you.', ref: 'Quran 14:7', surah: 14, ayah: 7 },
+            { arabic: 'وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ', translation: 'And proclaim the blessings of your Lord.', ref: 'Quran 93:11', surah: 93, ayah: 11 },
+            { arabic: 'وَإِن تَعُدُّوا نِعْمَتَ اللَّهِ لَا تُحْصُوهَا', translation: 'If you count Allah\'s blessings, you cannot number them.', ref: 'Quran 14:34', surah: 14, ayah: 34 },
+            { arabic: 'فَاسْتَجَابَ لَهُمْ رَبُّهُمْ', translation: 'So their Lord responded to them.', ref: 'Quran 3:195', surah: 3, ayah: 195 },
+            { arabic: 'وَبَشِّرِ الْمُؤْمِنِينَ', translation: 'Give glad tidings to the believers.', ref: 'Quran 2:223', surah: 2, ayah: 223 },
+            { arabic: 'رَّبَّنَا تَقَبَّلْ مِنَّا', translation: 'Our Lord, accept from us.', ref: 'Quran 2:127', surah: 2, ayah: 127 },
+            { arabic: 'إِنَّ اللَّهَ يُحِبُّ التَّوَّابِينَ', translation: 'Allah loves those who repent.', ref: 'Quran 2:222', surah: 2, ayah: 222 },
+            { arabic: 'وَالَّذِينَ جَاهَدُوا فِينَا لَنَهْدِيَنَّهُمْ سُبُلَنَا', translation: 'Those who strive for Us, We will guide them.', ref: 'Quran 29:69', surah: 29, ayah: 69 },
+            { arabic: 'فَضْلًا مِّنَ اللَّهِ وَنِعْمَةً', translation: 'As bounty from Allah and favor.', ref: 'Quran 10:58', surah: 10, ayah: 58 },
+            { arabic: 'يَا أَيَّتُهَا النَّفْسُ الْمُطْمَئِنَّةُ', translation: 'O soul at peace.', ref: 'Quran 89:27', surah: 89, ayah: 27 }
+        ],
+        Stressed: [
+            { arabic: 'أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ', translation: 'In remembrance of Allah do hearts find rest.', ref: 'Quran 13:28', surah: 13, ayah: 28 },
+            { arabic: 'حَسْبُنَا اللَّهُ وَنِعْمَ الْوَكِيلُ', translation: 'Allah is sufficient for us.', ref: 'Quran 3:173', surah: 3, ayah: 173 },
+            { arabic: 'وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ', translation: 'Whoever relies on Allah, He is sufficient.', ref: 'Quran 65:3', surah: 65, ayah: 3 },
+            { arabic: 'فَلَا تَخَفْهُمْ وَخَافُونِ إِن كُنتُم مُّؤْمِنِينَ', translation: 'Do not fear them, fear Me.', ref: 'Quran 3:175', surah: 3, ayah: 175 },
+            { arabic: 'وَلَا تَهِنُوا وَلَا تَحْزَنُوا', translation: 'Do not weaken nor grieve.', ref: 'Quran 3:139', surah: 3, ayah: 139 },
+            { arabic: 'إِنَّ مَعِيَ رَبِّي سَيَهْدِينِ', translation: 'My Lord is with me, He will guide me.', ref: 'Quran 26:62', surah: 26, ayah: 62 },
+            { arabic: 'وَيَرْزُقْهُ مِنْ حَيْثُ لَا يَحْتَسِبُ', translation: 'He will provide from where he does not expect.', ref: 'Quran 65:3', surah: 65, ayah: 3 },
+            { arabic: 'فَإِنَّ الْعُسْرَ مَعَ الْيُسْرِ', translation: 'With hardship comes ease.', ref: 'Quran 94:6', surah: 94, ayah: 6 },
+            { arabic: 'وَأَن لَّيْسَ لِلْإِنسَانِ إِلَّا مَا سَعَىٰ', translation: 'Man will have nothing but what he strives for.', ref: 'Quran 53:39', surah: 53, ayah: 39 },
+            { arabic: 'سَيَجْعَلُ اللَّهُ بَعْدَ عُسْرٍ يُسْرًا', translation: 'Allah will bring about ease.', ref: 'Quran 65:7', surah: 65, ayah: 7 }
+        ],
+        Sad: [
+            { arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا', translation: 'With hardship comes ease.', ref: 'Quran 94:5', surah: 94, ayah: 5 },
+            { arabic: 'وَلَا تَيْأَسُوا مِن رَّوْحِ اللَّهِ', translation: 'Do not despair of Allah\'s mercy.', ref: 'Quran 12:87', surah: 12, ayah: 87 },
+            { arabic: 'إِنَّ اللَّهَ مَعَ الصَّابِرِينَ', translation: 'Allah is with the patient.', ref: 'Quran 2:153', surah: 2, ayah: 153 },
+            { arabic: 'وَاصْبِرْ فَإِنَّ اللَّهَ لَا يُضِيعُ أَجْرَ الْمُحْسِنِينَ', translation: 'Be patient, Allah does not waste reward.', ref: 'Quran 11:115', surah: 11, ayah: 115 },
+            { arabic: 'وَعَسَىٰ أَن تَكْرَهُوا شَيْئًا وَهُوَ خَيْرٌ لَّكُمْ', translation: 'Perhaps you dislike something good for you.', ref: 'Quran 2:216', surah: 2, ayah: 216 },
+            { arabic: 'فَاصْبِرْ صَبْرًا جَمِيلًا', translation: 'Be patient with gracious patience.', ref: 'Quran 70:5', surah: 70, ayah: 5 },
+            { arabic: 'وَبَشِّرِ الصَّابِرِينَ', translation: 'Give glad tidings to the patient.', ref: 'Quran 2:155', surah: 2, ayah: 155 },
+            { arabic: 'لَا تَحْزَنْ إِنَّ اللَّهَ مَعَنَا', translation: 'Do not grieve, Allah is with us.', ref: 'Quran 9:40', surah: 9, ayah: 40 },
+            { arabic: 'إِنَّمَا يُوَفَّى الصَّابِرُونَ أَجْرَهُم بِغَيْرِ حِسَابٍ', translation: 'The patient will be given reward without measure.', ref: 'Quran 39:10', surah: 39, ayah: 10 },
+            { arabic: 'وَاصْبِرْ وَمَا صَبْرُكَ إِلَّا بِاللَّهِ', translation: 'Be patient, your patience is from Allah.', ref: 'Quran 16:127', surah: 16, ayah: 127 }
+        ],
+        Grateful: [
+            { arabic: 'الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ', translation: 'All praise is due to Allah, Lord of all worlds.', ref: 'Quran 1:2', surah: 1, ayah: 2 },
+            { arabic: 'لَئِن شَكَرْتُمْ لَأَزِيدَنَّكُمْ', translation: 'If you are grateful, I will increase you.', ref: 'Quran 14:7', surah: 14, ayah: 7 },
+            { arabic: 'وَأَمَّا بِنِعْمَةِ رَبِّكَ فَحَدِّثْ', translation: 'Proclaim the blessings of your Lord.', ref: 'Quran 93:11', surah: 93, ayah: 11 },
+            { arabic: 'وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ', translation: 'Be grateful to Me and do not deny Me.', ref: 'Quran 2:152', surah: 2, ayah: 152 },
+            { arabic: 'فَاذْكُرُونِي أَذْكُرْكُمْ', translation: 'Remember Me, I will remember you.', ref: 'Quran 2:152', surah: 2, ayah: 152 },
+            { arabic: 'مَّا يَفْعَلُ اللَّهُ بِعَذَابِكُمْ إِن شَكَرْتُمْ', translation: 'Why would Allah punish you if you are grateful?', ref: 'Quran 4:147', surah: 4, ayah: 147 },
+            { arabic: 'وَإِن تَشْكُرُوا يَرْضَهُ لَكُمْ', translation: 'If you are grateful, He will be pleased with you.', ref: 'Quran 39:7', surah: 39, ayah: 7 },
+            { arabic: 'سَنَزِيدُكُم مِّن فَضْلِنَا', translation: 'We will increase you from Our bounty.', ref: 'Quran 34:15', surah: 34, ayah: 15 },
+            { arabic: 'وَلَئِن شَكَرْتُمْ لَأَرْضَيَنَّكُم', translation: 'If you are grateful, I will surely please you.', ref: 'Quran 14:7', surah: 14, ayah: 7 },
+            { arabic: 'يَا أَيُّهَا الَّذِينَ آمَنُوا كُلُوا مِن طَيِّبَاتِ مَا رَزَقْنَاكُمْ وَاشْكُرُوا لِلَّهِ', translation: 'Eat from good things and be grateful to Allah.', ref: 'Quran 2:172', surah: 2, ayah: 172 }
+        ],
+        Peaceful: [
+            { arabic: 'رَبَّنَا آتِنَا فِي الدُّنْيَا حَسَنَةً', translation: 'Our Lord, give us good in this world.', ref: 'Quran 2:201', surah: 2, ayah: 201 },
+            { arabic: 'وَاذْكُر رَّبَّكَ إِذَا نَسِيتَ', translation: 'Remember your Lord when you forget.', ref: 'Quran 18:24', surah: 18, ayah: 24 },
+            { arabic: 'إِنَّ اللَّهَ لَا يُغَيِّرُ مَا بِقَوْمٍ حَتَّىٰ يُغَيِّرُوا مَا بِأَنفُسِهِمْ', translation: 'Allah does not change a people\'s condition unless they change themselves.', ref: 'Quran 13:11', surah: 13, ayah: 11 },
+            { arabic: 'فَاذْكُرُونِي أَذْكُرْكُمْ', translation: 'Remember Me, and I will remember you.', ref: 'Quran 2:152', surah: 2, ayah: 152 },
+            { arabic: 'إِنَّ الْإِنسَانَ لَفِي خُسْرٍ', translation: 'Indeed, mankind is in loss.', ref: 'Quran 103:2', surah: 103, ayah: 2 },
+            { arabic: 'إِلَّا الَّذِينَ آمَنُوا وَعَمِلُوا الصَّالِحَاتِ', translation: 'Except those who believe and do righteous deeds.', ref: 'Quran 103:3', surah: 103, ayah: 3 },
+            { arabic: 'وَتَوَاصَوْا بِالْحَقِّ وَتَوَاصَوْا بِالصَّبْرِ', translation: 'Encourage each other to truth and patience.', ref: 'Quran 103:3', surah: 103, ayah: 3 },
+            { arabic: 'إِنَّ اللَّهَ مَعَ الَّذِينَ اتَّقَوْا', translation: 'Allah is with those who are righteous.', ref: 'Quran 16:128', surah: 16, ayah: 128 },
+            { arabic: 'وَرَحْمَتُ اللَّهِ وَبَرَكَاتُهُ عَلَيْكُمْ', translation: 'May the mercy and blessings of Allah be upon you.', ref: 'Quran 11:73', surah: 11, ayah: 73 },
+            { arabic: 'سَلَامٌ قَوْلًا مِّن رَّبٍّ رَّحِيمٍ', translation: 'Peace, a word from a Merciful Lord.', ref: 'Quran 36:58', surah: 36, ayah: 58 }
+        ]
+    };
+
+    const CAT_EMOJIS = { Happy:'😊', Stressed:'😰', Sad:'😢', Grateful:'🤲', Peaceful:'😌' };
+
+    let activeCategory = 'Peaceful';
+    let currentVerse = null;
+    let currentAudio = null;
+    let isPlaying = false;
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    // =====================================
+    // PLAY SPECIFIC AYAH AUDIO - FIXED!
+    // =====================================
+    function playSpecificAyah(surah, ayah) {
+        // Stop any currently playing audio
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio = null;
+            isPlaying = false;
+        }
+        
+        // Format with leading zeros (3 digits each)
+        const surahStr = String(surah).padStart(3, '0');
+        const ayahStr = String(ayah).padStart(3, '0');
+        
+        // Using everyayah.com API for specific ayah audio
+        const audioUrl = `https://everyayah.com/data/Alafasy_128kbps/${surahStr}${ayahStr}.mp3`;
+        
+        console.log(`Playing: Surah ${surah}, Ayah ${ayah} - URL: ${audioUrl}`);
+        
+        // Update status on the verse card
+        const statusDiv = document.querySelector('.audio-status');
+        if (statusDiv) {
+            statusDiv.innerHTML = '<span class="playing-indicator"></span> Loading audio...';
+            statusDiv.style.color = '#e8aeb8';
+        }
+        
+        currentAudio = new Audio(audioUrl);
+        
+        currentAudio.oncanplay = () => {
+            if (statusDiv) {
+                statusDiv.innerHTML = '<span class="playing-indicator"></span> Playing recitation...';
+                statusDiv.style.color = '#4CAF50';
+            }
+        };
+        
+        currentAudio.play().catch(e => {
+            console.error('Audio error:', e);
+            if (statusDiv) {
+                statusDiv.innerHTML = '⚠️ Audio not available for this ayah';
+                statusDiv.style.color = '#e74c3c';
+                setTimeout(() => {
+                    if (statusDiv && currentVerse) {
+                        statusDiv.innerHTML = `🎧 Click to listen (Surah ${currentVerse.surah}, Ayah ${currentVerse.ayah})`;
+                        statusDiv.style.color = '';
+                    }
+                }, 3000);
+            }
+        });
+        
+        currentAudio.onended = () => {
+            isPlaying = false;
+            if (statusDiv && currentVerse) {
+                statusDiv.innerHTML = `🎧 Click to listen (Surah ${currentVerse.surah}, Ayah ${currentVerse.ayah})`;
+                statusDiv.style.color = '';
+            }
+            currentAudio = null;
+        };
+        
+        currentAudio.onerror = () => {
+            if (statusDiv && currentVerse) {
+                statusDiv.innerHTML = `⚠️ Audio unavailable for Surah ${currentVerse.surah}, Ayah ${currentVerse.ayah}`;
+                statusDiv.style.color = '#e74c3c';
+                setTimeout(() => {
+                    if (statusDiv && currentVerse) {
+                        statusDiv.innerHTML = `🎧 Click to listen (Surah ${currentVerse.surah}, Ayah ${currentVerse.ayah})`;
+                        statusDiv.style.color = '';
+                    }
+                }, 3000);
+            }
+            currentAudio = null;
+        };
+    }
+
+    function initDarkMode() {
+        const darkMode = localStorage.getItem('darkMode') === 'true';
+        if (darkMode) {
+            document.body.classList.add('dark-mode');
+            document.getElementById('darkModeToggle').textContent = '☀️';
+        }
+        document.getElementById('darkModeToggle').onclick = () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('darkMode', isDark);
+            document.getElementById('darkModeToggle').textContent = isDark ? '☀️' : '🌙';
+        };
+    }
+
+    if (!api.getToken()) window.location.href = 'login.html';
+
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    document.getElementById('menu-btn').onclick = () => { sidebar.classList.add('open'); overlay.classList.add('show'); };
+    overlay.onclick = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
+    document.getElementById('logout-btn').onclick = (e) => { 
+        e.preventDefault(); 
+        if (currentAudio) currentAudio.pause();
+        api.clearToken(); 
+        window.location.href = 'login.html'; 
+    };
+
+    async function loadLatestMood() {
+        try {
+            const todayMood = await api.getTodayMood();
+            if (todayMood) {
+                const moodMap = { 'Sad': 'Sad', 'Stressed': 'Stressed', 'Neutral': 'Peaceful', 'Happy': 'Happy', 'Very Happy': 'Happy' };
+                activeCategory = moodMap[todayMood.mood] || 'Peaceful';
+            }
+        } catch(e) {}
+        renderJar();
+    }
+
+    function pickVerse(cat) { 
+        const verses = VERSES[cat];
+        return verses[Math.floor(Math.random() * verses.length)];
+    }
+
+    function renderJar() {
+        currentVerse = pickVerse(activeCategory);
+        const card = document.getElementById('jar-card');
+        
+        if (!card) return;
+        
+        card.innerHTML = `
+            <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 16px;">📖 Quranic Jar</h2>
+            <p style="text-align: center; color: var(--text-light); margin-bottom: 8px;">Browse verses by mood ${CAT_EMOJIS[activeCategory]}</p>
+            <p style="text-align: center; color: var(--accent-pink); font-weight: 800; margin-bottom: 20px;">${activeCategory}</p>
+            
+            <div class="verse-card" onclick="window.playSpecificAyah(${currentVerse.surah}, ${currentVerse.ayah})">
+                <div class="verse-arabic" style="font-size: 28px;">${escapeHtml(currentVerse.arabic)}</div>
+                <hr class="verse-divider">
+                <div class="verse-translation">"${escapeHtml(currentVerse.translation)}"</div>
+                <div class="verse-ref">- ${escapeHtml(currentVerse.ref)}</div>
+                <div class="audio-status" style="margin-top: 8px;">🎧 Click to listen (Surah ${currentVerse.surah}, Ayah ${currentVerse.ayah})</div>
+            </div>
+            
+            <div style="display: flex; gap: 12px; margin: 20px 0;">
+                <button class="btn-outline-pink" id="save-btn" style="flex: 1;">🤍 Save</button>
+                <button class="btn-matcha" id="new-verse-btn" style="flex: 1;">↺ New Verse</button>
+            </div>
+            
+            <p style="font-weight: 800; margin-bottom: 12px;">Categories:</p>
+            ${Object.keys(VERSES).map(cat => `
+                <button class="cat-btn ${cat === activeCategory ? 'active' : ''}" data-cat="${cat}">
+                    <span>• ${cat}</span>
+                    <span class="cat-emoji">${CAT_EMOJIS[cat]}</span>
+                </button>
+            `).join('')}
+            
+            <button class="btn-outline" id="view-saved-btn" style="margin-top: 16px; width: 100%;">
+                📖 VIEW ALL SAVED VERSES
+            </button>
+        `;
+        
+        // Make function available globally for onclick
+        window.playSpecificAyah = playSpecificAyah;
+        
+        // Category buttons
+        document.querySelectorAll('.cat-btn').forEach(btn => { 
+            btn.onclick = () => { 
+                activeCategory = btn.dataset.cat; 
+                renderJar(); 
+            }; 
+        });
+        
+        // Save button
+        const saveBtn = document.getElementById('save-btn');
+        if (saveBtn) {
+            saveBtn.onclick = saveVerse;
+        }
+        
+        // New Verse button
+        const newVerseBtn = document.getElementById('new-verse-btn');
+        if (newVerseBtn) {
+            newVerseBtn.onclick = () => renderJar();
+        }
+        
+        // View saved button
+        const viewSavedBtn = document.getElementById('view-saved-btn');
+        if (viewSavedBtn) {
+            viewSavedBtn.onclick = openSaved;
+        }
+    }
+
+    async function saveVerse() {
+        if (!currentVerse) return;
+        const btn = document.getElementById('save-btn');
+        if (!btn) return;
+        
+        btn.textContent = 'Saving...';
+        btn.disabled = true;
+        
+        try {
+            await api.saveVerse(
+                currentVerse.arabic, 
+                currentVerse.translation, 
+                currentVerse.ref, 
+                activeCategory
+            );
+            btn.textContent = '✓ Saved!';
+            btn.style.background = '#4CAF50';
+            btn.style.color = 'white';
+            setTimeout(() => { 
+                btn.textContent = '🤍 Save';
+                btn.style.background = '';
+                btn.style.color = '';
+                btn.disabled = false; 
+            }, 2000);
+        } catch(err) { 
+            alert('Could not save: ' + err.message); 
+            btn.textContent = '🤍 Save'; 
+            btn.disabled = false; 
+        }
+    }
+
+    async function openSaved() {
+        const modal = document.getElementById('saved-modal');
+        const list = document.getElementById('saved-list');
+        if (!modal || !list) return;
+        
+        modal.classList.add('show');
+        list.innerHTML = '<div class="spinner"></div>';
+        
+        try {
+            const savedVerses = await api.getSavedVerses();
+            if (savedVerses.length === 0) {
+                list.innerHTML = '<p class="empty-msg">No saved verses yet. Start saving! 🌸</p>';
+            } else {
+                list.innerHTML = savedVerses.map(v => `
+                    <div class="entry-card" style="margin-bottom: 10px;">
+                        <div class="e-emoji">📖</div>
+                        <div class="e-info">
+                            <div class="e-when">${escapeHtml(v.reference)}</div>
+                            <div class="e-verse" style="font-family: 'Amiri', serif; font-size: 16px; direction: rtl; margin: 5px 0;">${escapeHtml(v.arabic)}</div>
+                            <div class="e-verse">"${escapeHtml(v.translation.substring(0, 80))}..."</div>
+                            <div style="font-size: 11px; color: var(--accent-pink); margin-top: 5px;">${escapeHtml(v.mood)} mood</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        } catch(err) { 
+            list.innerHTML = `<div class="alert alert-error">${escapeHtml(err.message)}</div>`; 
+        }
+    }
+
+    document.getElementById('close-saved-modal')?.addEventListener('click', () => {
+        document.getElementById('saved-modal')?.classList.remove('show');
+    });
+    
+    initDarkMode();
+    loadLatestMood();
+</script>
+</body>
+</html>

@@ -3,15 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MoodJar — Register</title>
+    <title>MindSakinah — Create Account 🌸</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+    <div class="brand">Mind<span>Sakinah</span> 🕊️</div>
+    <a href="index.html"><span class="icon">🏠</span> Home</a>
+    <a href="login.html"><span class="icon">🔑</span> Sign In</a>
+    <a href="register.html" class="active"><span class="icon">📝</span> Register</a>
+    <a href="streak.html"><span class="icon">🔥</span> My Streak</a>
+</div>
+
+<div class="navbar">
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <h2>Join MindSakinah</h2>
+    <div>
+        <button id="darkModeToggle" style="background: rgba(255,255,255,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; margin-right: 10px;">🌙</button>
+    </div>
+    <div class="avatar" id="avatar-initial">🌸</div>
+</div>
+
 <div class="auth-wrap">
-    <div class="card auth-card">
+    <div class="auth-card">
         <div class="auth-logo">
-            <h1>Mood<span>Jar</span> 🫙</h1>
-            <p>Create your account</p>
+            <h1>Mind<span>Sakinah</span></h1>
+            <p>Start your journey to inner peace</p>
         </div>
         <div id="alert-box"></div>
         <label class="field-label">Username</label>
@@ -22,18 +41,39 @@
         <input type="password" id="password" placeholder="Min. 6 characters">
         <label class="field-label">Confirm Password</label>
         <input type="password" id="confirm" placeholder="Repeat password">
-        <button class="btn btn-green" id="reg-btn">CREATE ACCOUNT</button>
+        <button class="btn btn-matcha" id="reg-btn">Create Account 🌸</button>
         <div class="auth-footer">
-            Already have an account? <a href="index.html">Login here</a>
+            Already have an account? <a href="login.html">Sign in</a>
         </div>
     </div>
 </div>
+
 <script type="module">
     import { api } from './js/api.js';
     
-    if (api.getToken()) {
-        window.location.href = 'dashboard.html';
+    function initDarkMode() {
+    // Check localStorage on page load
+    const darkMode = localStorage.getItem('darkMode') === 'true';
+    if (darkMode) {
+        document.body.classList.add('dark-mode');
+        document.getElementById('darkModeToggle').textContent = '☀️';
     }
+    
+    document.getElementById('darkModeToggle').onclick = () => {
+        document.body.classList.toggle('dark-mode');
+        const isDark = document.body.classList.contains('dark-mode');
+        localStorage.setItem('darkMode', isDark);
+        document.getElementById('darkModeToggle').textContent = isDark ? '☀️' : '🌙';
+    };
+}
+    
+    
+    if (api.getToken()) window.location.href = 'dashboard.html';
+    
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    document.getElementById('menu-btn').onclick = () => { sidebar.classList.add('open'); overlay.classList.add('show'); };
+    overlay.onclick = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
     
     document.getElementById('reg-btn').onclick = async () => {
         const username = document.getElementById('username').value.trim();
@@ -41,40 +81,19 @@
         const password = document.getElementById('password').value;
         const confirm = document.getElementById('confirm').value;
         const alertBox = document.getElementById('alert-box');
-        
         alertBox.innerHTML = '';
-        
-        if (!username || !email || !password || !confirm) {
-            alertBox.innerHTML = '<div class="alert alert-error">Please fill in all fields.</div>';
-            return;
-        }
-        
-        if (password !== confirm) {
-            alertBox.innerHTML = '<div class="alert alert-error">Passwords do not match.</div>';
-            return;
-        }
-        
-        if (password.length < 6) {
-            alertBox.innerHTML = '<div class="alert alert-error">Password must be at least 6 characters.</div>';
-            return;
-        }
-        
+        if (!username || !email || !password || !confirm) { alertBox.innerHTML = '<div class="alert alert-error">Please fill in all fields 🌸</div>'; return; }
+        if (password !== confirm) { alertBox.innerHTML = '<div class="alert alert-error">Passwords do not match 🌸</div>'; return; }
+        if (password.length < 6) { alertBox.innerHTML = '<div class="alert alert-error">Password must be at least 6 characters</div>'; return; }
         const btn = document.getElementById('reg-btn');
         btn.textContent = 'Creating account...';
         btn.disabled = true;
-        
         try {
             const result = await api.register(username, email, password);
-            if (result.user) {
-                localStorage.setItem('user', JSON.stringify(result.user));
-                window.location.href = 'dashboard.html';
-            }
-        } catch (err) {
-            alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`;
-            btn.textContent = 'CREATE ACCOUNT';
-            btn.disabled = false;
-        }
+            if (result.user) { localStorage.setItem('user', JSON.stringify(result.user)); window.location.href = 'dashboard.html'; }
+        } catch (err) { alertBox.innerHTML = `<div class="alert alert-error">${err.message}</div>`; btn.textContent = 'Create Account 🌸'; btn.disabled = false; }
     };
+    initDarkMode();
 </script>
 </body>
 </html>

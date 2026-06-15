@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MindSakinah — Profile 👤</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="overlay" id="overlay"></div>
+<div class="sidebar" id="sidebar">
+    <div class="brand">Mind<span>Sakinah</span> 🕊️</div>
+    <a href="dashboard.html"><span class="icon">🏠</span> Dashboard</a>
+    <a href="history.html"><span class="icon">📅</span> Mood History</a>
+    <a href="quranic-jar.html"><span class="icon">📖</span> Quranic Jar</a>
+    <a href="streak.html"><span class="icon">🔥</span> My Streak</a>
+    <a href="profile.html" class="active"><span class="icon">👤</span> Profile</a>
+    <a href="#" id="logout-btn"><span class="icon">🚪</span> Logout</a>
+</div>
+
+<div class="navbar">
+    <button class="menu-btn" id="menu-btn">☰</button>
+    <h2>My Profile</h2>
+    <div>
+        <button id="darkModeToggle" style="background: rgba(255,255,255,0.5); border: none; border-radius: 50%; width: 36px; height: 36px; cursor: pointer; margin-right: 10px;">🌙</button>
+    </div>
+    <div class="avatar" id="avatar-initial">👤</div>
+</div>
+
+<div class="page-wrap">
+    <div class="card" style="text-align: center;">
+        <div id="avatar-preview" style="font-size: 80px; margin-bottom: 16px;">🌸</div>
+        <input type="file" id="avatar-upload" accept="image/*" style="display: none;">
+        <button id="change-avatar-btn" class="btn btn-outline" style="width: auto; padding: 8px 24px; margin-bottom: 20px;">Change Avatar</button>
+        
+        <label class="field-label">Username</label>
+        <input type="text" id="username" placeholder="Your username">
+        
+        <label class="field-label">Email</label>
+        <input type="email" id="email" disabled style="background: rgba(255,255,255,0.3);">
+        
+        <label class="field-label">Member Since</label>
+        <input type="text" id="member-since" disabled style="background: rgba(255,255,255,0.3);">
+        
+        <button id="save-profile" class="btn btn-matcha">Save Changes 🌸</button>
+        
+        <hr class="divider">
+        
+        <h3 style="margin-bottom: 12px;">📊 Export Your Data</h3>
+        <button id="export-csv" class="btn btn-outline">Download CSV</button>
+        
+        <hr class="divider">
+        
+        <h3 style="margin-bottom: 12px; color: var(--accent-pink);">⚠️ Danger Zone</h3>
+        <button id="delete-data" class="btn btn-outline-pink" style="border-color: var(--accent-pink);">Delete All Data</button>
+    </div>
+</div>
+
+<script type="module">
+    import { api } from './js/api.js';
+    
+          
+    function initDarkMode() {
+        const darkMode = localStorage.getItem('darkMode') === 'true';
+        if (darkMode) {
+            document.body.classList.add('dark-mode');
+            document.getElementById('darkModeToggle').textContent = '☀️';
+        }
+        
+        document.getElementById('darkModeToggle').onclick = () => {
+            document.body.classList.toggle('dark-mode');
+            const isDark = document.body.classList.contains('dark-mode');
+            localStorage.setItem('darkMode', isDark);
+            document.getElementById('darkModeToggle').textContent = isDark ? '☀️' : '🌙';
+        };
+    }
+
+    if (!api.getToken()) window.location.href = 'login.html';
+    
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('overlay');
+    document.getElementById('menu-btn').onclick = () => { sidebar.classList.add('open'); overlay.classList.add('show'); };
+    overlay.onclick = () => { sidebar.classList.remove('open'); overlay.classList.remove('show'); };
+    document.getElementById('logout-btn').onclick = (e) => { e.preventDefault(); api.clearToken(); window.location.href = 'login.html'; };
+    
+    async function loadProfile() {
+        try {
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            document.getElementById('username').value = user.username || '';
+            document.getElementById('email').value = user.email || '';
+            const profile = await api.request('/user/profile');
+            if (profile && profile.created_at) {
+                const date = new Date(profile.created_at);
+                document.getElementById('member-since').value = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            }
+            document.getElementById('avatar-initial').textContent = (user.username || 'U').charAt(0).toUpperCase();
+        } catch(e) {}
+    }
+    
+    document.getElementById('save-profile').onclick = async () => {
+        const newUsername = document.getElementById('username').value.trim();
+        if (!newUsername) return;
+        try {
+            await api.request('/user/profile', { method: 'PUT', body: JSON.stringify({ username: newUsername }) });
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            user.username = newUsername;
+            localStorage.setItem('user', JSON.stringify(user));
+            alert('Profile updated successfully! 🌸');
+            loadProfile();
+        } catch(e) { alert('Failed to update profile'); }
+    };
+    
+    document.getElementById('export-csv').onclick = () => { window.open('http://localhost:3000/api/moods/export', '_blank'); };
+    document.getElementById('delete-data').onclick = () => { if (confirm('⚠️ WARNING: This will delete ALL your data. This cannot be undone. Are you sure?')) alert('Contact admin to delete data.'); };
+    document.getElementById('change-avatar-btn').onclick = () => document.getElementById('avatar-upload').click();
+    document.getElementById('avatar-upload').onchange = (e) => { const file = e.target.files[0]; if (file) { const reader = new FileReader(); reader.onload = (event) => { document.getElementById('avatar-preview').innerHTML = `<img src="${event.target.result}" style="width: 80px; height: 80px; border-radius: 50%; object-fit: cover;">`; }; reader.readAsDataURL(file); } };
+    
+    initDarkMode();
+    loadProfile();
+</script>
+</body>
+</html>

@@ -202,6 +202,38 @@ app.get('/api/saved-verses', authenticate, async (req, res) => {
     }
 });
 
+// Save mood with tags
+app.post('/api/moods/with-tags', authenticate, async (req, res) => {
+    const { mood, emoji, note, tags } = req.body;
+    
+    try {
+        const [result] = await pool.execute(
+            'INSERT INTO moods (user_id, mood, emoji, note, tags) VALUES (?, ?, ?, ?, ?)',
+            [req.userId, mood, emoji, note || '', JSON.stringify(tags || [])]
+        );
+        
+        res.json({ success: true, id: result.insertId });
+    } catch (error) {
+        console.error('Error saving mood:', error);
+        res.status(500).json({ error: 'Failed to save mood' });
+    }
+});
+// Save verse with surah/ayah numbers
+app.post('/api/saved-verses', authenticate, async (req, res) => {
+    const { arabic, translation, reference, mood, surah_number, ayah_number, audioUrl } = req.body;
+    
+    try {
+        const [result] = await pool.execute(
+            'INSERT INTO saved_verses (user_id, arabic, translation, reference, mood, surah_number, ayah_number, audio_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [req.userId, arabic, translation, reference, mood, surah_number || null, ayah_number || null, audioUrl || null]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error saving verse:', error);
+        res.status(500).json({ error: 'Failed to save verse' });
+    }
+});
+
 // Start server
 const PORT = 3000;
 app.listen(PORT, () => {
