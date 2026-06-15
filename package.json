@@ -1,10 +1,10 @@
 {
   "name": "aisyah_fyp",
   "version": "1.0.0",
-  "description": "",
-  "main": "node.js",
+  "description": "MindSakinah - Islamic Mental Health Tracker",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +15,7 @@
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
-    "mysql2": "^3.22.3"
+    "mysql2": "^3.22.3",
+    "pg": "^8.21.0"
   }
 }
