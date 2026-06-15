@@ -1,5 +1,5 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
+const { Pool } = require('pg');  // Changed from mysql2
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -9,26 +9,22 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static('public'));
 
-// Database connection
-const pool = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'moodjar',
-    waitForConnections: true,
-    connectionLimit: 10
+// Database connection for PostgreSQL (Supabase)
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
 });
 
-const JWT_SECRET = 'moodjar-secret-key-2024';
+const JWT_SECRET = process.env.JWT_SECRET || 'moodjar-secret-key-2024';
 
 // Test connection
 async function testConnection() {
     try {
-        const connection = await pool.getConnection();
-        console.log('✅ MySQL connected successfully');
-        connection.release();
+        const client = await pool.connect();
+        console.log('✅ PostgreSQL connected successfully');
+        client.release();
     } catch (error) {
-        console.error('❌ MySQL connection failed:', error.message);
+        console.error('❌ PostgreSQL connection failed:', error.message);
     }
 }
 testConnection();
@@ -39,21 +35,23 @@ app.post('/api/register', async (req, res) => {
     
     try {
         const hashedPassword = await bcrypt.hash(password, 10);
-        const [result] = await pool.execute(
-            'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
+        const result = await pool.query(
+            'INSERT INTO users (username, email, password_hash) VALUES ($1, $2, $3) RETURNING id',
             [username, email, hashedPassword]
         );
         
-        const token = jwt.sign({ userId: result.insertId }, JWT_SECRET, { expiresIn: '7d' });
+        const userId = result.rows[0].id;
+        const token = jwt.sign({ userId: userId }, JWT_SECRET, { expiresIn: '7d' });
         res.json({ 
             success: true,
             token, 
-            user: { id: result.insertId, username, email } 
+            user: { id: userId, username, email } 
         });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === '23505') { // PostgreSQL duplicate key error
             res.status(400).json({ error: 'Email already exists' });
         } else {
+            console.error(error);
             res.status(500).json({ error: 'Registration failed' });
         }
     }
@@ -64,16 +62,16 @@ app.post('/api/login', async (req, res) => {
     const { email, password } = req.body;
     
     try {
-        const [rows] = await pool.execute(
-            'SELECT * FROM users WHERE email = ?',
+        const result = await pool.query(
+            'SELECT * FROM users WHERE email = $1',
             [email]
         );
         
-        if (rows.length === 0) {
+        if (result.rows.length === 0) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
         
-        const user = rows[0];
+        const user = result.rows[0];
         const validPassword = await bcrypt.compare(password, user.password_hash);
         
         if (!validPassword) {
@@ -87,6 +85,7 @@ app.post('/api/login', async (req, res) => {
             user: { id: user.id, username: user.username, email: user.email } 
         });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Login failed' });
     }
 });
@@ -111,13 +110,14 @@ app.post('/api/moods', authenticate, async (req, res) => {
     const { mood, emoji, note } = req.body;
     
     try {
-        const [result] = await pool.execute(
-            'INSERT INTO moods (user_id, mood, emoji, note) VALUES (?, ?, ?, ?)',
+        const result = await pool.query(
+            'INSERT INTO moods (user_id, mood, emoji, note) VALUES ($1, $2, $3, $4) RETURNING id',
             [req.userId, mood, emoji, note || '']
         );
         
-        res.json({ success: true, id: result.insertId });
+        res.json({ success: true, id: result.rows[0].id });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Failed to save mood' });
     }
 });
@@ -125,14 +125,15 @@ app.post('/api/moods', authenticate, async (req, res) => {
 // Get today's mood
 app.get('/api/moods/today', authenticate, async (req, res) => {
     try {
-        const [rows] = await pool.execute(
+        const result = await pool.query(
             `SELECT * FROM moods 
-             WHERE user_id = ? AND DATE(logged_at) = CURDATE() 
+             WHERE user_id = $1 AND DATE(logged_at) = CURRENT_DATE 
              ORDER BY logged_at DESC LIMIT 1`,
             [req.userId]
         );
-        res.json(rows[0] || null);
+        res.json(result.rows[0] || null);
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Failed to fetch today\'s mood' });
     }
 });
@@ -140,12 +141,13 @@ app.get('/api/moods/today', authenticate, async (req, res) => {
 // Get all moods
 app.get('/api/moods', authenticate, async (req, res) => {
     try {
-        const [rows] = await pool.execute(
-            `SELECT * FROM moods WHERE user_id = ? ORDER BY logged_at DESC LIMIT 50`,
+        const result = await pool.query(
+            `SELECT * FROM moods WHERE user_id = $1 ORDER BY logged_at DESC LIMIT 50`,
             [req.userId]
         );
-        res.json({ moods: rows });
+        res.json({ moods: result.rows });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Failed to fetch moods' });
     }
 });
@@ -153,78 +155,73 @@ app.get('/api/moods', authenticate, async (req, res) => {
 // Get stats
 app.get('/api/moods/stats', authenticate, async (req, res) => {
     try {
-        const [totalResult] = await pool.execute(
-            'SELECT COUNT(*) as total FROM moods WHERE user_id = ?',
+        const totalResult = await pool.query(
+            'SELECT COUNT(*) as total FROM moods WHERE user_id = $1',
             [req.userId]
         );
         
-        const [topMoodResult] = await pool.execute(
+        const topMoodResult = await pool.query(
             `SELECT mood, COUNT(*) as count 
-             FROM moods WHERE user_id = ? 
+             FROM moods WHERE user_id = $1 
              GROUP BY mood ORDER BY count DESC LIMIT 1`,
             [req.userId]
         );
         
         res.json({
-            total: totalResult[0].total,
-            topMood: topMoodResult[0] || null
+            total: parseInt(totalResult.rows[0].total),
+            topMood: topMoodResult.rows[0] || null
         });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ error: 'Failed to fetch stats' });
+    }
+});
+
+// Get mood trends
+app.get('/api/moods/trends', authenticate, async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT 
+                DATE(logged_at) as date,
+                mood,
+                emoji,
+                logged_at
+             FROM moods 
+             WHERE user_id = $1 AND logged_at >= NOW() - INTERVAL '30 days'
+             ORDER BY logged_at ASC`,
+            [req.userId]
+        );
+        
+        const moodValues = {
+            'Sad': 1,
+            'Stressed': 2,
+            'Neutral': 3,
+            'Happy': 4,
+            'Very Happy': 5
+        };
+        
+        const trends = result.rows.map(row => ({
+            date: row.date,
+            mood: row.mood,
+            emoji: row.emoji,
+            value: moodValues[row.mood] || 3
+        }));
+        
+        res.json(trends);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch trends' });
     }
 });
 
 // Save verse
 app.post('/api/saved-verses', authenticate, async (req, res) => {
-    const { arabic, translation, reference, mood } = req.body;
-    
-    try {
-        const [result] = await pool.execute(
-            'INSERT INTO saved_verses (user_id, arabic, translation, reference, mood) VALUES (?, ?, ?, ?, ?)',
-            [req.userId, arabic, translation, reference, mood]
-        );
-        res.json({ success: true });
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to save verse' });
-    }
-});
-
-// Get saved verses
-app.get('/api/saved-verses', authenticate, async (req, res) => {
-    try {
-        const [rows] = await pool.execute(
-            'SELECT * FROM saved_verses WHERE user_id = ? ORDER BY saved_at DESC',
-            [req.userId]
-        );
-        res.json(rows);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to fetch saved verses' });
-    }
-});
-
-// Save mood with tags
-app.post('/api/moods/with-tags', authenticate, async (req, res) => {
-    const { mood, emoji, note, tags } = req.body;
-    
-    try {
-        const [result] = await pool.execute(
-            'INSERT INTO moods (user_id, mood, emoji, note, tags) VALUES (?, ?, ?, ?, ?)',
-            [req.userId, mood, emoji, note || '', JSON.stringify(tags || [])]
-        );
-        
-        res.json({ success: true, id: result.insertId });
-    } catch (error) {
-        console.error('Error saving mood:', error);
-        res.status(500).json({ error: 'Failed to save mood' });
-    }
-});
-// Save verse with surah/ayah numbers
-app.post('/api/saved-verses', authenticate, async (req, res) => {
     const { arabic, translation, reference, mood, surah_number, ayah_number, audioUrl } = req.body;
     
     try {
-        const [result] = await pool.execute(
-            'INSERT INTO saved_verses (user_id, arabic, translation, reference, mood, surah_number, ayah_number, audio_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        await pool.query(
+            `INSERT INTO saved_verses (user_id, arabic, translation, reference, mood, surah_number, ayah_number, audio_url) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
             [req.userId, arabic, translation, reference, mood, surah_number || null, ayah_number || null, audioUrl || null]
         );
         res.json({ success: true });
@@ -234,8 +231,72 @@ app.post('/api/saved-verses', authenticate, async (req, res) => {
     }
 });
 
+// Get saved verses
+app.get('/api/saved-verses', authenticate, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM saved_verses WHERE user_id = $1 ORDER BY saved_at DESC',
+            [req.userId]
+        );
+        res.json(result.rows);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: 'Failed to fetch saved verses' });
+    }
+});
+
+// Save mood with tags
+app.post('/api/moods/with-tags', authenticate, async (req, res) => {
+    const { mood, emoji, note, tags } = req.body;
+    
+    try {
+        const result = await pool.query(
+            'INSERT INTO moods (user_id, mood, emoji, note, tags) VALUES ($1, $2, $3, $4, $5) RETURNING id',
+            [req.userId, mood, emoji, note || '', JSON.stringify(tags || [])]
+        );
+        
+        res.json({ success: true, id: result.rows[0].id });
+    } catch (error) {
+        console.error('Error saving mood:', error);
+        res.status(500).json({ error: 'Failed to save mood' });
+    }
+});
+
+// Prayer times endpoint (placeholder)
+app.get('/api/prayer-times', authenticate, async (req, res) => {
+    // You can implement this later
+    res.json(null);
+});
+
+// User profile endpoints
+app.get('/api/user/profile', authenticate, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT id, username, email, created_at FROM users WHERE id = $1',
+            [req.userId]
+        );
+        res.json(result.rows[0] || null);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch profile' });
+    }
+});
+
+app.put('/api/user/profile', authenticate, async (req, res) => {
+    const { username } = req.body;
+    
+    try {
+        await pool.query(
+            'UPDATE users SET username = $1 WHERE id = $2',
+            [username, req.userId]
+        );
+        res.json({ success: true, message: 'Profile updated' });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update profile' });
+    }
+});
+
 // Start server
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`\n🚀 Server running!`);
     console.log(`📍 Open: http://localhost:${PORT}`);
