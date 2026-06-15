@@ -1,5 +1,5 @@
 const express = require('express');
-const { Pool } = require('pg');  // Changed from mysql2
+const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -9,10 +9,15 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static('public'));
 
-// Database connection for PostgreSQL (Supabase)
+// Database connection for PostgreSQL (Supabase) - FIXED SSL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false }
+    ssl: { 
+        rejectUnauthorized: false,
+        require: true
+    },
+    connectionTimeoutMillis: 10000,
+    keepAlive: true
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'moodjar-secret-key-2024';
@@ -48,7 +53,7 @@ app.post('/api/register', async (req, res) => {
             user: { id: userId, username, email } 
         });
     } catch (error) {
-        if (error.code === '23505') { // PostgreSQL duplicate key error
+        if (error.code === '23505') {
             res.status(400).json({ error: 'Email already exists' });
         } else {
             console.error(error);
@@ -262,10 +267,75 @@ app.post('/api/moods/with-tags', authenticate, async (req, res) => {
     }
 });
 
-// Prayer times endpoint (placeholder)
+// Prayer times endpoint
 app.get('/api/prayer-times', authenticate, async (req, res) => {
-    // You can implement this later
-    res.json(null);
+    try {
+        const result = await pool.query(
+            'SELECT latitude, longitude, city FROM user_settings WHERE user_id = $1',
+            [req.userId]
+        );
+        
+        if (result.rows.length === 0 || !result.rows[0].latitude) {
+            return res.json(null);
+        }
+        
+        const { latitude, longitude } = result.rows[0];
+        const response = await fetch(`https://api.aladhan.com/v1/timings/${Math.floor(Date.now() / 1000)}?latitude=${latitude}&longitude=${longitude}&method=2`);
+        const data = await response.json();
+        
+        res.json({
+            city: result.rows[0].city,
+            timings: data.data.timings
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch prayer times' });
+    }
+});
+
+// Save prayer location
+app.post('/api/user/prayer-location', authenticate, async (req, res) => {
+    const { latitude, longitude, city } = req.body;
+    
+    try {
+        await pool.query(
+            `INSERT INTO user_settings (user_id, latitude, longitude, city) 
+             VALUES ($1, $2, $3, $4) 
+             ON CONFLICT (user_id) DO UPDATE SET latitude = $2, longitude = $3, city = $4`,
+            [req.userId, latitude, longitude, city]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to save location' });
+    }
+});
+
+// User reminder
+app.post('/api/user/reminder', authenticate, async (req, res) => {
+    const { reminderTime } = req.body;
+    
+    try {
+        await pool.query(
+            `INSERT INTO user_settings (user_id, reminder_time) 
+             VALUES ($1, $2) 
+             ON CONFLICT (user_id) DO UPDATE SET reminder_time = $2`,
+            [req.userId, reminderTime]
+        );
+        res.json({ success: true });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to save reminder' });
+    }
+});
+
+app.get('/api/user/reminder', authenticate, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT reminder_time FROM user_settings WHERE user_id = $1',
+            [req.userId]
+        );
+        res.json(result.rows[0] || null);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch reminder' });
+    }
 });
 
 // User profile endpoints
@@ -295,9 +365,50 @@ app.put('/api/user/profile', authenticate, async (req, res) => {
     }
 });
 
+// Export moods as CSV
+app.get('/api/moods/export', authenticate, async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT mood, emoji, note, logged_at, tags FROM moods WHERE user_id = $1 ORDER BY logged_at DESC',
+            [req.userId]
+        );
+        
+        let csv = 'Date,Mood,Emoji,Note,Tags\n';
+        result.rows.forEach(row => {
+            csv += `${row.logged_at},${row.mood},${row.emoji},"${row.note || ''}",${row.tags}\n`;
+        });
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename=mood-journal.csv');
+        res.send(csv);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to export data' });
+    }
+});
+
+// Create user_settings table if not exists (run this once)
+async function initDatabase() {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS user_settings (
+                user_id INTEGER PRIMARY KEY,
+                reminder_time VARCHAR(10),
+                latitude DECIMAL(10, 8),
+                longitude DECIMAL(11, 8),
+                city VARCHAR(100),
+                dark_mode BOOLEAN DEFAULT FALSE
+            )
+        `);
+        console.log('✅ Database tables verified');
+    } catch (error) {
+        console.error('❌ Database init error:', error.message);
+    }
+}
+
 // Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+    await initDatabase();
     console.log(`\n🚀 Server running!`);
     console.log(`📍 Open: http://localhost:${PORT}`);
     console.log(`\n⚠️  Don't close this terminal window!\n`);
