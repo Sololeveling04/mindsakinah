@@ -9,15 +9,11 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static('public'));
 
-// Database connection for PostgreSQL (Supabase) - FIXED SSL
+// Database connection for PostgreSQL (Supabase)
+// SSL is now handled entirely by the 'sslmode=verify-full' parameter in the DATABASE_URL
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { 
-        rejectUnauthorized: false,
-        require: true
-    },
     connectionTimeoutMillis: 10000,
-    keepAlive: true
 });
 
 const JWT_SECRET = process.env.JWT_SECRET || 'moodjar-secret-key-2024';
